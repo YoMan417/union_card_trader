@@ -6,6 +6,8 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+import newcard
+
 print("imports successful")
 
 load_dotenv()
@@ -32,5 +34,19 @@ async def getpfp(ctx, member: discord.Member = None):
     else:
         print(member.avatar)
         await ctx.send(member.avatar)
+
+@bot.command(name="mycard")
+async def mycard(ctx, member: discord.Member = None):
+    if not member:
+        member = ctx.author
+    print(member.name)
+    print(member.id)
+    print(member.avatar)
+    stats, pos = newcard.getstats(member.id)
+    nat = "gb"
+    quote = "I am a honorary German."
+    newcard.newcard(member.name, stats, pos, nat, quote, member.avatar, "cards/" + member.name + ".png")
+
+    await ctx.send("done")
 
 bot.run(TOKEN)

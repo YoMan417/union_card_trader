@@ -1,9 +1,10 @@
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
 import os
 import urllib.request
 import json
 import requests
+import random
 from io import BytesIO
 import numpy as np
 
@@ -30,30 +31,74 @@ def getstats(dsc_id):
     team_ovr = ((250/3)*data["pointsTeam"])**(1/3.5)
     ovr = ((200/7)*data["pointsTotal"])**(1/3.5)
 
+    totalsolo = data["pointsSolo"] + data["pointsContestSolo"]
+    totalteam = data["pointsTeam"] + data["pointsContestTeam"]
+    totalfit = data["pointsFirstInTeam"] + data["pointsContestFirstInTeam"]
+
+    print(totalsolo, totalteam, totalfit)
+
+    if (totalsolo / totalteam) > 0.6:
+        pos = "ST"
+    elif (totalsolo / totalteam) > 0.2:
+        pos = "CF"
+    elif (totalfit / totalteam) > 0.6:
+        pos = "AM"
+    elif (totalfit / totalteam) > 0.3:
+        pos = "LM" if ovr % 2 == 0 else "RM"
+    elif (totalsolo + totalfit) / totalteam > 0.8:
+        pos = "LW" if ovr % 2 == 0 else "RW"
+    elif (totalteam / (totalsolo + totalfit)) > 2.5:
+        pos = "GK"
+    elif (totalteam / (totalsolo + totalfit)) > 1.7:
+        pos = "CB"
+    elif (totalteam / (totalsolo + totalfit)) > 1.2:
+        pos = "LB" if ovr % 2 == 0 else "RB"
+    else:
+        pos = "CM"
+
     statlist = [ovr, solo_ovr, team_ovr, fit_ovr, csolo_ovr, cteam_ovr, cfit_ovr]
     statlist = [round(_) for _ in statlist]
-    return statlist
+    return statlist, pos
 
-def pfp_analysis(photo_link): 
-    response = requests.get(photo_link)
-    img = Image.open(BytesIO(response.content))
-    pix = np.array(img.getdata())
-    dcount, lcount = 0,0
-    for pixel in pix:
-        if sum(pixel)/3 < 127.5:
-            dcount += 1
-        else:
-            lcount += 1
-    return (dcount < lcount)
+def genfont(type, size):
+    return ImageFont.truetype('card_designs/' + type + '.ttf', size)
 
-    #img.show()
-    
-
-def newcard(name, stats, pfp, pfpcolor, output):
+def newcard(name, stats, pos, nat, quote, pfp, output):
     ovr = stats[0]
-    other_stats = stats[1:]
+    card_background = Image.open("card_designs/" + str(int(ovr/10)*10) + ".png")
+    card_background = card_background.resize((1288,1800))
+    card_background = card_background.convert("RGBA")
+    response = requests.get(pfp)
+    pfp = Image.open(BytesIO(response.content))
+    pfp = pfp.resize((450,450))
+    card_background.paste(pfp, (600,250), pfp)
+    print(card_background.size)
+    carddraw = ImageDraw.Draw(card_background)
+    print(str(ovr))
+    carddraw.text((290,350), str(ovr), (255,215,0), font=genfont("EA", 150), stroke_width=1)
+    carddraw.text((290,525), str(pos), (255,255,255), font=genfont("EA", 100), stroke_width=1)
+    w, h = carddraw.textsize(name, font=genfont("arial", int(175/(len(name)**(1/2)))))
+    carddraw.text((825-(w/2),700), name, (255,215,0), font=genfont("arial", int(175/(len(name)**(1/2)))), stroke_width=2)
+    w, h = carddraw.textsize(quote, font=genfont("arial", int(250/(len(quote)**(1/2)))))
+    carddraw.text((644-(w/2),800), quote, font=genfont("arial", int(250/(len(quote)**(1/2)))))
+    carddraw.text((250,1150), "SOLO  " + str(stats[1]), font=genfont("EA", 65))
+    carddraw.text((250,1250), "TEAM  " + str(stats[2]), font=genfont("EA", 65))
+    carddraw.text((250,1350), "FIT   " + str(stats[3]), font=genfont("EA", 65))
+    carddraw.text((800,1150), "CSOLO " + str(stats[4]), font=genfont("EA", 65))
+    carddraw.text((800,1250), "CTEAM " + str(stats[5]), font=genfont("EA", 65))
+    carddraw.text((800,1350), "CFIT  " + str(stats[6]), font=genfont("EA", 65))
+    flag = Image.open("flags/" + nat + ".png")
+    flag = flag.resize((120,72))
+    card_background.paste(flag, (300,650))
+    card_background.show()
+    card_background.save(output)
 
 if __name__ == "__main__":
-    #print(getstats("547906814663196682"))
-    print(pfp_analysis("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZfvyX_tSP6oVTSzVd5RSbk3gE_8mS8ygkFso85sBDgBRhRA&s"))
-    
+    #print(pfp_analysis("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZfvyX_tSP6oVTSzVd5RSbk3gE_8mS8ygkFso85sBDgBRhRA&s"))
+    stats, pos = getstats("547906814663196682")
+    newcard(r"[UNION] Theriel", stats, pos, "de", "'I am a honorary German.'", "https://cdn.discordapp.com/avatars/937082904616513577/12737c98d133d563042510ca61611047.png?size=1024", "cards/" + "YoMan417" + ".png")
+    #937082904616513577
+    #547906814663196682
+    #1035502624893566977
+    #400296877230260224
+    #361385665998618634
