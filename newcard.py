@@ -22,7 +22,8 @@ def getstats(dsc_id):
     for key in list(data.keys()):
         if data[key] is None:
             data[key] = 0
-    print(data)
+    if data["pointsTotal"] < 5000:
+        return False, None
     cfit_ovr = ((1000/3)*(data["pointsContestFirstInTeam"]))**(1/3.5)
     csolo_ovr = ((16/5)*data["pointsContestSolo"])**(1/2)
     cteam_ovr = ((20/3)*data["pointsContestTeam"])**(1/3)
@@ -47,11 +48,11 @@ def getstats(dsc_id):
         pos = "LM" if ovr % 2 == 0 else "RM"
     elif (totalsolo + totalfit) / totalteam > 0.8:
         pos = "LW" if ovr % 2 == 0 else "RW"
-    elif (totalteam / (totalsolo + totalfit)) > 2.5:
+    elif (totalteam / (totalsolo + totalfit)) > 3.5:
         pos = "GK"
-    elif (totalteam / (totalsolo + totalfit)) > 1.7:
+    elif (totalteam / (totalsolo + totalfit)) > 2.2:
         pos = "CB"
-    elif (totalteam / (totalsolo + totalfit)) > 1.2:
+    elif (totalteam / (totalsolo + totalfit)) > 1.5:
         pos = "LB" if ovr % 2 == 0 else "RB"
     else:
         pos = "CM"
@@ -63,7 +64,7 @@ def getstats(dsc_id):
 def genfont(type, size):
     return ImageFont.truetype('card_designs/' + type + '.ttf', size)
 
-def newcard(name, stats, pos, nat, quote, pfp, output):
+def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     ovr = stats[0]
     card_background = Image.open("card_designs/" + str(int(ovr/10)*10) + ".png")
     card_background = card_background.resize((1288,1800))
@@ -79,19 +80,25 @@ def newcard(name, stats, pos, nat, quote, pfp, output):
     carddraw.text((290,525), str(pos), (255,255,255), font=genfont("EA", 100), stroke_width=1)
     w, h = carddraw.textsize(name, font=genfont("arial", int(175/(len(name)**(1/2)))))
     carddraw.text((825-(w/2),700), name, (255,215,0), font=genfont("arial", int(175/(len(name)**(1/2)))), stroke_width=2)
-    w, h = carddraw.textsize(quote, font=genfont("arial", int(250/(len(quote)**(1/2)))))
-    carddraw.text((644-(w/2),800), quote, font=genfont("arial", int(250/(len(quote)**(1/2)))))
+    if quote:
+        quote = str(quote)
+        w, h = carddraw.textsize(quote, font=genfont("arial", int(275/(len(quote)**(1/2)))))
+        carddraw.text((644-(w/2),800), quote, font=genfont("arial", int(275/(len(quote)**(1/2)))))
     carddraw.text((250,1150), "SOLO  " + str(stats[1]), font=genfont("EA", 65))
     carddraw.text((250,1250), "TEAM  " + str(stats[2]), font=genfont("EA", 65))
     carddraw.text((250,1350), "FIT   " + str(stats[3]), font=genfont("EA", 65))
     carddraw.text((800,1150), "CSOLO " + str(stats[4]), font=genfont("EA", 65))
     carddraw.text((800,1250), "CTEAM " + str(stats[5]), font=genfont("EA", 65))
     carddraw.text((800,1350), "CFIT  " + str(stats[6]), font=genfont("EA", 65))
-    flag = Image.open("flags/" + nat + ".png")
-    flag = flag.resize((120,72))
-    card_background.paste(flag, (300,650))
-    card_background.show()
-    card_background.save(output)
+    status = True
+    if nat:
+        try:
+            flag = Image.open("flags/" + nat + ".png")
+            flag = flag.resize((120,72))
+            card_background.paste(flag, (300,650))
+        except:
+            status = False
+    return card_background, status
 
 if __name__ == "__main__":
     #print(pfp_analysis("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZfvyX_tSP6oVTSzVd5RSbk3gE_8mS8ygkFso85sBDgBRhRA&s"))

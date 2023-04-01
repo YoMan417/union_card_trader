@@ -21,3 +21,4 @@ build/
 *.clean
 *.intco
 venv
+tmp/
