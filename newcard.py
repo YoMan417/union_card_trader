@@ -102,10 +102,9 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
 
 if __name__ == "__main__":
     #print(pfp_analysis("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZfvyX_tSP6oVTSzVd5RSbk3gE_8mS8ygkFso85sBDgBRhRA&s"))
-    stats, pos = getstats("547906814663196682")
-    newcard(r"[UNION] Theriel", stats, pos, "de", "'I am a honorary German.'", "https://cdn.discordapp.com/avatars/937082904616513577/12737c98d133d563042510ca61611047.png?size=1024", "cards/" + "YoMan417" + ".png")
     #937082904616513577
     #547906814663196682
     #1035502624893566977
     #400296877230260224
     #361385665998618634
+    pass

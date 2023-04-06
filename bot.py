@@ -9,6 +9,7 @@ import sqlite3
 from PIL import Image
 
 import newcard
+from helperfuncs import *
 
 print("imports successful")
 
@@ -24,22 +25,48 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="<", intents=intents)
 
-def executesql(db_path, query, close=True):
-    with sqlite3.connect(db_path) as db:
-        cursor = db.cursor()
-        cursor.execute(query)
-        result = cursor.fetchall()
-        db.commit()
-    if close:
-        cursor.close()
-    return result
+
+class Select(discord.ui.Select):
+    def __init__(self, options, info, initiator):
+        super().__init__(placeholder="Select an option",max_values=1,min_values=1,options=options)
+        self.info = info
+        self.initiator = initiator
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id == self.initiator.id:
+            filename = getcard(self.info[self.values[0]])
+            file = discord.File(filename) # an image in the same folder as the main bot file
+            embed = discord.Embed() # any kwargs you want here
+            embed.set_image(url=f"attachment://{filename}")
+            await interaction.response.send_message(content=f"Displaying {self.values[0]}'s card",embed=embed, file=file ,ephemeral=True)
+
+class SelectView(discord.ui.View):
+    def __init__(self, *, select: Select, timeout = 180):
+        super().__init__(timeout=timeout)
+        self.add_item(select)
+
+def getcard(member):
+    results = executesql(DB_PATH, f"SELECT nation, quote, public FROM members WHERE members.memberid = {member.id}")[0]
+    stats, pos = newcard.getstats(member.id)
+    nat = results[0]
+    quote = results[1]
+    name = member.nick if member.nick else member.name
+    img, _ = newcard.newcard(name, stats, pos, member.avatar, "cards/" + member.name + ".png", nat, quote)
+    path = "tmp/card.png"
+    img.save(path)
+    return path
+    
 
 def createcard(dsc_id):
     executesql(DB_PATH, f"INSERT INTO members VALUES ({dsc_id}, '', '', FALSE)")
+    executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES({dsc_id}, {dsc_id}, -1)")
 
 def verifycard(dsc_id):
     results = executesql(DB_PATH, f"SELECT 1 FROM members WHERE memberid = {dsc_id}")
     return (True if results else False)
+
+def verifyhascard(dsc_id, card_id):
+    results = executesql(DB_PATH, f"SELECT quantity FROM memberhas WHERE memberid = {dsc_id} AND cardid = {card_id}")
+    return (results if results else False)
 
 @bot.command(name="init")
 async def init(ctx, member: discord.Member = None):
@@ -127,39 +154,74 @@ def setattr(ctx, attr, arg, optional=None):
         if not verifycard(ctx.author.id):
             createcard(ctx.author.id)
         results = executesql(DB_PATH, f"UPDATE members SET {attr}='{arg}' WHERE members.memberid = {ctx.author.id}")
-        return f"Set {ctx.author.name}'s {attr} to {arg}!"
+        return f"Set {ctx.author.nick if ctx.author.nick else ctx.author.name}'s {attr} to {arg}!"
     
-
-@bot.command(name="mycard")
-async def mycard(ctx, member: discord.Member = None):
+@bot.command(name="gift")
+async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
+    print("gift command called with", member.name, othermember)
     adminrole = discord.utils.get(ctx.guild.roles, name="admin")
-    if not member:
-        member = ctx.author
-    stats, pos = newcard.getstats(member.id)
-    if not stats:
-        await ctx.send("You don't have enough points yet! Get 5,000 points for UNION to get your own card!")
-        return 
+    if ((not adminrole) and othermember):
+        await ctx.send("Not an admin, you don't have permissions for this action.")
     else:
-        if not verifycard(member.id):
-            createcard(member.id)
-        results = executesql(DB_PATH, f"SELECT nation, quote, public FROM members WHERE members.memberid = {member.id}")[0]
-        print(results)
-        print(member.nick, member.name, member)
-
-        if ((str(results[2]) == "0") and (member != ctx.author)):
-            if (adminrole not in ctx.author.roles):
-                await ctx.send("That member's card is private. Ask them for a trade or defeat them in a 1v1 battle to get their card!")
-                return
+        if (adminrole and othermember):
+            receivingmemberid = othermember.id
+            cardgiftedid = member.id
+        else:
+            receivingmemberid = member.id
+            cardgiftedid = ctx.author.id
+        stats, _ = newcard.getstats(cardgiftedid)
+        if not stats:
+            await ctx.send("That member doesn't have enough points yet!")
+        else:
+            if not verifycard(cardgiftedid):
+                createcard(cardgiftedid)
+            results = verifyhascard(receivingmemberid, cardgiftedid)
+            print(results)
+            if results:
+                results = results[0][0]
+                executesql(DB_PATH, f"UPDATE memberhas SET quantity = {int(results)+1} WHERE memberid={receivingmemberid} AND cardid={cardgiftedid}")
             else:
-                await ctx.send("Bypassing privacy with admin role...")
-        nat = results[0]
-        quote = results[1]
-        name = member.nick if member.nick else member.name
-        img, stat = newcard.newcard(name, stats, pos, member.avatar, "cards/" + member.name + ".png", nat, quote)
-        if not stat:
-            await ctx.send("That flag does not currently exist in the database.")
-        path = "tmp/card.png"
-        img.save(path)
-        await ctx.send("", file=discord.File(path))
+                executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({receivingmemberid}, {cardgiftedid}, 1)")
+            await ctx.send(f"Gifted {member.nick if member.nick else member.name}'s card to {othermember.nick if othermember.nick else othermember.name}")
+    
+@bot.command(name="searchcard")
+async def searchcard(ctx, keyword=None):
+    if keyword: keyword = keyword.lower()
+    results = executesql(DB_PATH, f"SELECT cardid, quantity FROM memberhas WHERE memberid={ctx.author.id}")
+    if not results: 
+        await ctx.send("You don't have any cards yet!")
+        return
+    else: 
+        options = []
+        info = dict()
+        for (cardid, quantity) in results:
+            user = discord.utils.get(ctx.guild.members, id=cardid)
+            if (not keyword) or (keyword in str(user.name).lower()) or (keyword in str(user.nick).lower()):
+                name = user.nick if user.nick else user.name
+                options.append(discord.SelectOption(label=name, description=f"Quantity: {quantity}"))
+                info[name] = user
+        if not options: await ctx.send("No results found...check your input or try more generic keywords!")
+        else:
+            selectmenu = Select(options, info, ctx.author)
+            print(SelectView(select=selectmenu))
+            await ctx.send("Here are the results we found:",view=SelectView(select=selectmenu))
+
+
+@bot.command(name="update")
+async def update(ctx):
+    adminrole = discord.utils.get(ctx.guild.roles, name="admin")
+    if adminrole not in ctx.author.roles:
+        await ctx.send("Not an admin, you are not authorised to perform this action.")
+    else:
+        allmembers = discord.utils.get(ctx.guild.members)
+        for member in allmembers:
+            stats, _ = newcard.getstats(member.id)
+            if stats:
+                if not verifycard(member.id):
+                    createcard(member.id)
+                    await ctx.send(f"Created {member.nick if member.nick else member.name}'s card!")
+
+
+
 
 bot.run(TOKEN)
