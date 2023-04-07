@@ -37,6 +37,7 @@ class Select(discord.ui.Select):
             file = discord.File(filename) # an image in the same folder as the main bot file
             embed = discord.Embed() # any kwargs you want here
             embed.set_image(url=f"attachment://{filename}")
+            print(embed, file, filename, self.values[0])
             await interaction.response.send_message(content=f"Displaying {self.values[0]}'s card",embed=embed, file=file ,ephemeral=True)
 
 class SelectView(discord.ui.View):
@@ -83,7 +84,7 @@ async def init(ctx, member: discord.Member = None):
             print("1 created")
             executesql(DB_PATH, "CREATE TABLE IF NOT EXISTS memberhas (membercardid INTEGER PRIMARY KEY AUTOINCREMENT, memberid INTEGER, cardid INTEGER, quantity INTEGER)")
             print('2 created')
-            executesql(DB_PATH, "CREATE TABLE IF NOT EXISTS trades (tradeid INTEGER PRIMARY KEY AUTOINCREMENT, initmemberid INTEGER, cardoffered INTEGER, cardrequired INTEGER, status BOOLEAN, acceptmemberid INTEGER)")
+            executesql(DB_PATH, "CREATE TABLE IF NOT EXISTS trades (tradeid INTEGER PRIMARY KEY AUTOINCREMENT, initmemberid INTEGER, cardoffered INTEGER, cardreceived INTEGER, status BOOLEAN, acceptmemberid INTEGER)")
     await ctx.send("Initialisation successful for " + GUILD)
 
 @bot.command(name="setpublic")
@@ -164,25 +165,26 @@ async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
         await ctx.send("Not an admin, you don't have permissions for this action.")
     else:
         if (adminrole and othermember):
-            receivingmemberid = othermember.id
-            cardgiftedid = member.id
+            receivingmember = othermember
+            cardgifted = member
         else:
-            receivingmemberid = member.id
-            cardgiftedid = ctx.author.id
-        stats, _ = newcard.getstats(cardgiftedid)
+            print("receiving member:", member.name, "card:", ctx.author.name)
+            receivingmember = member
+            cardgifted = ctx.author
+        stats, _ = newcard.getstats(cardgifted.id)
         if not stats:
             await ctx.send("That member doesn't have enough points yet!")
         else:
-            if not verifycard(cardgiftedid):
-                createcard(cardgiftedid)
-            results = verifyhascard(receivingmemberid, cardgiftedid)
+            if not verifycard(cardgifted.id):
+                createcard(cardgifted.id)
+            results = verifyhascard(receivingmember.id, cardgifted.id)
             print(results)
             if results:
                 results = results[0][0]
-                executesql(DB_PATH, f"UPDATE memberhas SET quantity = {int(results)+1} WHERE memberid={receivingmemberid} AND cardid={cardgiftedid}")
+                executesql(DB_PATH, f"UPDATE memberhas SET quantity = {int(results)+1 if results > 0 else -1} WHERE memberid={receivingmember.id} AND cardid={cardgifted.id}")
             else:
-                executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({receivingmemberid}, {cardgiftedid}, 1)")
-            await ctx.send(f"Gifted {member.nick if member.nick else member.name}'s card to {othermember.nick if othermember.nick else othermember.name}")
+                executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({receivingmember.id}, {cardgifted.id}, 1)")
+            await ctx.send(f"Gifted {cardgifted.nick if cardgifted.nick else cardgifted.name}'s card to {receivingmember.nick if receivingmember.nick else receivingmember.name}")
     
 @bot.command(name="searchcard")
 async def searchcard(ctx, keyword=None):
@@ -198,8 +200,9 @@ async def searchcard(ctx, keyword=None):
             user = discord.utils.get(ctx.guild.members, id=cardid)
             if (not keyword) or (keyword in str(user.name).lower()) or (keyword in str(user.nick).lower()):
                 name = user.nick if user.nick else user.name
-                options.append(discord.SelectOption(label=name, description=f"Quantity: {quantity}"))
-                info[name] = user
+                if quantity != 0:
+                    options.append(discord.SelectOption(label=name, description=f"Quantity: {'Unlimited' if quantity == -1 else quantity}"))
+                    info[name] = user
         if not options: await ctx.send("No results found...check your input or try more generic keywords!")
         else:
             selectmenu = Select(options, info, ctx.author)
@@ -220,6 +223,132 @@ async def update(ctx):
                 if not verifycard(member.id):
                     createcard(member.id)
                     await ctx.send(f"Created {member.nick if member.nick else member.name}'s card!")
+
+@bot.command(name="trade")
+async def trade(ctx, cardoffered: discord.Member, cardreceived: discord.Member):
+    memberhas = executesql(DB_PATH, f"SELECT cardid, quantity FROM memberhas WHERE memberid = {ctx.author.id}")
+    print(memberhas)
+    if not memberhas:
+        await ctx.send("You don't have any cards yet!")
+        return
+    elif cardoffered.id not in [_[0] for _ in memberhas]:
+        await ctx.send("You don't have that card yet!")
+        return
+    else:
+        curquantity = 0
+        for (cardid, quantity) in memberhas:
+            if (cardid == cardoffered.id) and ((quantity != -1) and (quantity <= 0)):
+                await ctx.send("You don't have enough of that card yet!")
+                return
+            elif (cardid == cardoffered.id):
+                curquantity = quantity
+    stats, _ = newcard.getstats(cardreceived.id)
+    if not stats:
+        await ctx.send("The card you are trying to obtain doesn't exist yet!")
+        return
+    else:
+        if not verifycard(cardreceived.id):
+            createcard(cardreceived.id)
+            await ctx.send(f"Created {cardreceived.nick if cardreceived.nick else cardreceived.name}'s card!")
+    results = executesql(DB_PATH, f"INSERT INTO trades (initmemberid, cardoffered, cardreceived, status) VALUES ({ctx.author.id}, {cardoffered.id}, {cardreceived.id}, False)")
+    tradeid = executesql(DB_PATH, f"SELECT tradeid FROM trades WHERE (initmemberid = {ctx.author.id}) AND (cardoffered = {cardoffered.id}) AND (cardreceived = {cardreceived.id})")
+    results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {curquantity - 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {cardoffered.id})")
+    tradeid = max(sorted(tradeid[0]))
+    await ctx.send("Created trade with id " + str(tradeid))
+
+@bot.command(name="tradeaccept")
+async def tradeaccept(ctx, tradeid):
+    tradedetails = executesql(DB_PATH, f"SELECT initmemberid, cardoffered, cardreceived, status FROM trades WHERE tradeid = {tradeid}")
+    if not tradedetails:
+        await ctx.send("That trade doesn't exist!")
+        return
+    elif tradedetails[0][3]:
+        await ctx.send("That trade has already been accepted!")
+        return
+    else:
+        memberhas = executesql(DB_PATH, f"SELECT cardid, quantity FROM memberhas WHERE memberid = {ctx.author.id}")
+        if not memberhas:
+            await ctx.send("You don't have any cards yet!")
+            return
+        elif tradedetails[0][2] not in [_[0] for _ in memberhas]:
+            await ctx.send("You don't have that card yet!")
+            return
+        else:
+            alrquantity = 0
+            for (cardid, quantity) in memberhas:
+                if (cardid == tradedetails[0][2]) and ((quantity != -1) and (quantity <= 0)):
+                    await ctx.send("You don't have enough of that card yet!")
+                    return
+                elif (cardid == tradedetails[0][1]):
+                    alrquantity = quantity
+            results = executesql(DB_PATH, f"UPDATE trades SET status = True, acceptmemberid = {ctx.author.id} WHERE tradeid = {tradeid}")
+            await ctx.send("Trade " + str(tradeid) + " complete!")
+            results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {quantity - 1 if quantity != -1 else -1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][2]})")
+            if alrquantity and alrquantity == -1:
+                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {alrquantity + 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][1]})")
+            else:
+                results = executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({ctx.author.id}, {tradedetails[0][1]}, 1)")
+            othermemberhas = executesql(DB_PATH, f"SELECT quantity FROM memberhas WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
+            if not othermemberhas:
+                newquantity = 0
+            elif othermemberhas[0][0] == -1:
+                newquantity = -1
+            else:
+                newquantity = othermemberhas[0][0]
+            if newquantity:
+                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {newquantity + 1} WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
+            else:
+                results = executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({tradedetails[0][0]}, {tradedetails[0][2]}, 1)")
+            
+@bot.command(name="viewtrades")
+async def viewtrades(ctx, page=None):
+    if not page: page = 1
+    try: page = int(page)
+    except:
+        await ctx.send("Invalid page.")
+        return
+    if (page < 1):
+        await ctx.send("Invalid page.")
+        return
+    tradedetails = executesql(DB_PATH, f"SELECT * FROM trades WHERE (tradeid >= {(page-1)*10}) OR (tradeid <= {page*10})")
+    await ctx.send(f"Listing trades from ID {(page-1)*10} to {page*10}:")
+    for entry in tradedetails:
+        st = gentradedetails(ctx, entry)
+        await ctx.send(st)
+
+@bot.command(name="gettrade")
+async def gettrade(ctx, id):
+    if not id:
+        await ctx.send("Invalid id.")
+        return
+    try: id = int(id)
+    except:
+        await ctx.send("Invalid id.")
+        return
+    tradedetails = executesql(DB_PATH, f"SELECT * FROM trades WHERE tradeid = {id}")
+    if not tradedetails:
+        await ctx.send("Invalid id.")
+        return
+    await ctx.send(gentradedetails(ctx, tradedetails[0]))
+        
+
+def gentradedetails(ctx, entry):
+    st = f"ID: {entry[0]}\n"
+    initmem = discord.utils.get(ctx.guild.members, id=entry[1])
+    cardoffered = discord.utils.get(ctx.guild.members, id=entry[2])
+    cardreceived = discord.utils.get(ctx.guild.members, id=entry[3])
+    st += f"Initiating member: {initmem.nick if initmem.nick else initmem.name}\n"
+    st += f"Card offered: {cardoffered.nick if cardoffered.nick else cardoffered.name}'s card\n"
+    st += f"Card received: {cardreceived.nick if cardreceived.nick else cardreceived.name}'s card\n"
+    st += f"Status: {'Accepted' if entry[4] else 'Open'}\n"
+    if entry[4]:
+        acceptmem = discord.utils.get(ctx.guild.members, id=entry[5])
+        st += f"Accepting member: {acceptmem.nick if acceptmem.nick else acceptmem.name}"
+    st += "\n"
+    return st
+
+
+        
 
 
 
