@@ -1,6 +1,7 @@
 # bot.py
 import os
 import random
+import sys
 
 import discord
 from discord.ext import commands
@@ -69,12 +70,19 @@ def verifyhascard(dsc_id, card_id):
     results = executesql(DB_PATH, f"SELECT quantity FROM memberhas WHERE memberid = {dsc_id} AND cardid = {card_id}")
     return (results if results else False)
 
-@bot.command(name="init")
-async def init(ctx, member: discord.Member = None):
-    if not member:
-        member = ctx.author
+@bot.command(name="quit")
+async def quit(ctx):
     role = discord.utils.get(ctx.guild.roles, name="admin")
-    if role not in member.roles:
+    if role not in ctx.author.roles:
+        await ctx.send("Not an admin, you are not authorised to perform this command.")
+        return 
+    else:
+        sys.exit()
+
+@bot.command(name="init")
+async def init(ctx):
+    role = discord.utils.get(ctx.guild.roles, name="admin")
+    if role not in ctx.author.roles:
         await ctx.send("Not an admin, you are not authorised to perform this command.")
         return 
     else:
