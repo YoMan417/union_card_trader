@@ -187,7 +187,7 @@ async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
                 createcard(cardgifted.id)
             results = verifyhascard(receivingmember.id, cardgifted.id)
             print(results)
-            if results:
+            if (results or results == 0):
                 results = results[0][0]
                 executesql(DB_PATH, f"UPDATE memberhas SET quantity = {int(results)+1 if results > 0 else -1} WHERE memberid={receivingmember.id} AND cardid={cardgifted.id}")
             else:
