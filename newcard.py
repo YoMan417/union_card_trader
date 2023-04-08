@@ -62,7 +62,7 @@ def getstats(dsc_id):
     return statlist, pos
 
 def genfont(type, size):
-    return ImageFont.truetype('card_designs/' + type + '.ttf', size)
+    return ImageFont.truetype('card_designs/' + type + '.ttf', size, layout_engine=ImageFont.LAYOUT_BASIC)
 
 def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     ovr = stats[0]
