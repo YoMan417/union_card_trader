@@ -39,7 +39,7 @@ class Select(discord.ui.Select):
             embed = discord.Embed() # any kwargs you want here
             embed.set_image(url=f"attachment://{filename}")
             print(embed, file, filename, self.values[0])
-            await interaction.response.send_message(content=f"Displaying {self.values[0]}'s card",embed=embed, file=file ,ephemeral=True)
+            await interaction.response.send_message(content=f"Displaying {self.values[0]}'s card", file=file,ephemeral=True)
 
 class SelectView(discord.ui.View):
     def __init__(self, *, select: Select, timeout = 180):
@@ -115,7 +115,6 @@ async def viewcards(ctx, terms=None):
 		else:
 			selectmenu = Select(options, info, ctx.author)
 			await ctx.send("Here are the results we found:", view=SelectView(select=selectmenu))
-			
 
 @bot.command(name="setpublic", help="Sets your card as public. Admins can set others' cards to be public. Usage: <setpublic [user]")
 async def setpublic(ctx, member: discord.Member = None):
@@ -186,7 +185,8 @@ def setattr(ctx, attr, arg, optional=None):
             createcard(ctx.author.id)
         results = executesql(DB_PATH, f"UPDATE members SET {attr}='{arg}' WHERE members.memberid = {ctx.author.id}")
         return f"Set {ctx.author.nick if ctx.author.nick else ctx.author.name}'s {attr} to {arg}!"
-    
+
+
 @bot.command(name="gift", help="Gifts your card to another member free of charge. Usage: <gift [user] . Admins can gift other member's cards to others. Usage: <gift [card to be gifted] [receiving member]" )
 async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
     print("gift command called with", member.name, othermember)
@@ -210,7 +210,10 @@ async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
             results = verifyhascard(receivingmember.id, cardgifted.id)
             print(results)
             if (results or results == 0):
-                results = results[0][0]
+                try:
+                        results = results[0][0]
+                except:
+                        results = 0
                 executesql(DB_PATH, f"UPDATE memberhas SET quantity = {int(results)+1 if results > 0 else -1} WHERE memberid={receivingmember.id} AND cardid={cardgifted.id}")
             else:
                 executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({receivingmember.id}, {cardgifted.id}, 1)")
