@@ -97,24 +97,25 @@ async def init(ctx):
 
 @bot.command(name="viewcards", help="Search and view public cards! Usage: <viewcards [search terms]")
 async def viewcards(ctx, terms=None):
-	if terms: terms = terms.lower()
-	results = executesql(DB_PATH, f"SELECT cardid FROM members WHERE public=True")
-	if not results:
-		await ctx.send("No public cards found!")
-		return
-	else:
-		options = []
-		info = dict()
-		for (cardid) in results:
-			user = discord.utils.get(ctx.guild.members, id=cardid)
-			if (not terms) or (terms in str(user.name).lower()) or (terms in str(user.nick).lower()):
-				name = user.nick if user.nick else user.name
-				options.append(discord.SelectOption(label=name))
-				info[name] = user
-		if not options: await ctx.send("No results found...check your input or try more generic keywords!")
-		else:
-			selectmenu = Select(options, info, ctx.author)
-			await ctx.send("Here are the results we found:", view=SelectView(select=selectmenu))
+        if terms: terms = terms.lower()
+        results = executesql(DB_PATH, f"SELECT memberid FROM members WHERE public=True")
+        if not results:
+                await ctx.send("No public cards found!")
+                return
+        else:
+                options = []
+                info = dict()
+                for (cardid) in results:
+                        cardid = cardid[0]
+                        user = discord.utils.get(ctx.guild.members, id=cardid)
+                        if (not terms) or (terms in str(user.name).lower()) or (terms in str(user.nick).lower()):
+                                name = user.nick if user.nick else user.name
+                                options.append(discord.SelectOption(label=name))
+                                info[name] = user
+                if not options: await ctx.send("No results found...check your input or try more generic keywords!")
+                else:
+                        selectmenu = Select(options, info, ctx.author)
+                        await ctx.send("Here are the results we found:", view=SelectView(select=selectmenu))
 
 @bot.command(name="setpublic", help="Sets your card as public. Admins can set others' cards to be public. Usage: <setpublic [user]")
 async def setpublic(ctx, member: discord.Member = None):
@@ -218,9 +219,13 @@ async def gift(ctx, member: discord.Member, othermember: discord.Member=None):
 async def searchcard(ctx, keyword=None):
     if keyword: keyword = keyword.lower()
     results = executesql(DB_PATH, f"SELECT cardid, quantity FROM memberhas WHERE memberid={ctx.author.id}")
-    if not results: 
-        await ctx.send("You don't have any cards yet!")
-        return
+    if not results:
+        if newcard.getstats(ctx.author.id):
+                createcard(ctx.author.id)
+                results = executesql(DB_PATH, f"SELECT cardid, quantity FROM memberhas WHERE memberid={ctx.author.id}")
+        else: 
+                await ctx.send("You don't have any cards yet!")
+                return
     else: 
         options = []
         info = dict()

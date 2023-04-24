@@ -23,7 +23,7 @@ def getstats(dsc_id):
         if data[key] is None:
             data[key] = 0
     if data["pointsTotal"] < 5000:
-        return False, None
+        return False
     cfit_ovr = ((1000/3)*(data["pointsContestFirstInTeam"]))**(1/3.5)
     csolo_ovr = ((16/5)*data["pointsContestSolo"])**(1/2)
     cteam_ovr = ((20/3)*data["pointsContestTeam"])**(1/3)
