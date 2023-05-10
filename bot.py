@@ -285,7 +285,8 @@ async def trade(ctx, cardoffered: discord.Member, cardreceived: discord.Member):
             await ctx.send(f"Created {cardreceived.nick if cardreceived.nick else cardreceived.name}'s card!")
     results = executesql(DB_PATH, f"INSERT INTO trades (initmemberid, cardoffered, cardreceived, status) VALUES ({ctx.author.id}, {cardoffered.id}, {cardreceived.id}, False)")
     tradeid = executesql(DB_PATH, f"SELECT tradeid FROM trades WHERE (initmemberid = {ctx.author.id}) AND (cardoffered = {cardoffered.id}) AND (cardreceived = {cardreceived.id})")
-    results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {curquantity - 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {cardoffered.id})")
+    if cardoffered.id != ctx.author.id:
+        results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {curquantity - 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {cardoffered.id})")
     tradeid = max([trade[0] for trade in tradeid])
     await ctx.send("Created trade with id " + str(tradeid))
 
@@ -317,7 +318,7 @@ async def tradeaccept(ctx, tradeid):
             results = executesql(DB_PATH, f"UPDATE trades SET status = True, acceptmemberid = {ctx.author.id} WHERE tradeid = {tradeid}")
             await ctx.send("Trade " + str(tradeid) + " complete!")
             results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {quantity - 1 if quantity != -1 else -1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][2]})")
-            if alrquantity and alrquantity == -1:
+            if alrquantity and alrquantity != -1:
                 results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {alrquantity + 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][1]})")
             else:
                 results = executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({ctx.author.id}, {tradedetails[0][1]}, 1)")
