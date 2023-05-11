@@ -70,7 +70,7 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     card_background = card_background.resize((1288,1800))
     card_background = card_background.convert("RGBA")
     response = requests.get(pfp)
-    pfp = Image.open(BytesIO(response.content))
+    pfp = Image.open(BytesIO(response.content)).convert("RGBA")
     pfp = pfp.resize((450,450))
     card_background.paste(pfp, (600,250), pfp)
     print(card_background.size)
@@ -93,7 +93,7 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     status = True
     if nat:
         try:
-            flag = Image.open("flags/" + nat + ".png")
+            flag = Image.open("flags/" + nat + ".png").convert("RGBA")
             flag = flag.resize((120,72))
             card_background.paste(flag, (300,650))
         except:
