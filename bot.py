@@ -309,15 +309,18 @@ async def tradeaccept(ctx, tradeid):
             return
         else:
             alrquantity = 0
+            givingquantity = 0
             for (cardid, quantity) in memberhas:
-                if (cardid == tradedetails[0][2]) and ((quantity != -1) and (quantity <= 0)):
-                    await ctx.send("You don't have enough of that card yet!")
-                    return
+                if (cardid == tradedetails[0][2]):
+                    givingquantity = quantity
+                    if (givingquantity != -1) and (givingquantity <= 0):
+                        await ctx.send("You don't have enough of that card yet!")
+                        return
                 elif (cardid == tradedetails[0][1]):
                     alrquantity = quantity
             results = executesql(DB_PATH, f"UPDATE trades SET status = True, acceptmemberid = {ctx.author.id} WHERE tradeid = {tradeid}")
             await ctx.send("Trade " + str(tradeid) + " complete!")
-            results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {quantity - 1 if quantity != -1 else -1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][2]})")
+            results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {givingquantity - 1 if givingquantity != -1 else -1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][2]})")
             if alrquantity and alrquantity != -1:
                 results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {alrquantity + 1} WHERE (memberid = {ctx.author.id}) AND (cardid = {tradedetails[0][1]})")
             else:
@@ -330,7 +333,7 @@ async def tradeaccept(ctx, tradeid):
             else:
                 newquantity = othermemberhas[0][0]
             if newquantity:
-                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {newquantity + 1} WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
+                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {newquantity + 1 if newquantity != -1 else -1} WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
             else:
                 results = executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({tradedetails[0][0]}, {tradedetails[0][2]}, 1)")
             
