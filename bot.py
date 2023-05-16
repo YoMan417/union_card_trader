@@ -333,7 +333,7 @@ async def tradeaccept(ctx, tradeid):
             else:
                 newquantity = othermemberhas[0][0]
             if newquantity:
-                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {newquantity + 1 if newquantity != -1} WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
+                results = executesql(DB_PATH, f"UPDATE memberhas SET quantity = {newquantity + 1 if newquantity != -1 else -1} WHERE (memberid = {tradedetails[0][0]}) AND (cardid = {tradedetails[0][2]})")
             else:
                 results = executesql(DB_PATH, f"INSERT INTO memberhas (memberid, cardid, quantity) VALUES ({tradedetails[0][0]}, {tradedetails[0][2]}, 1)")
             
