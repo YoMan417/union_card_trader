@@ -1,13 +1,11 @@
 # bot.py
 import os
-import random
 import sys
 
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import sqlite3
-from PIL import Image
 
 import newcard
 from helperfuncs import *

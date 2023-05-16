@@ -4,9 +4,7 @@ import os
 import urllib.request
 import json
 import requests
-import random
 from io import BytesIO
-import numpy as np
 
 print("imports successful")
 
