@@ -23,7 +23,7 @@ def getstats(dsc_id):
         if data[key] is None:
             data[key] = 0
     if data["pointsTotal"] < 5000:
-        return False, None
+        return False
     cfit_ovr = ((1000/3)*(data["pointsContestFirstInTeam"]))**(1/3.5)
     csolo_ovr = ((16/5)*data["pointsContestSolo"])**(1/2)
     cteam_ovr = ((20/3)*data["pointsContestTeam"])**(1/3)
@@ -70,7 +70,7 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     card_background = card_background.resize((1288,1800))
     card_background = card_background.convert("RGBA")
     response = requests.get(pfp)
-    pfp = Image.open(BytesIO(response.content))
+    pfp = Image.open(BytesIO(response.content)).convert("RGBA")
     pfp = pfp.resize((450,450))
     card_background.paste(pfp, (600,250), pfp)
     print(card_background.size)
@@ -82,7 +82,7 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     carddraw.text((825-(w/2),700), name, (255,215,0), font=genfont("arial", int(175/(len(name)**(1/2)))), stroke_width=2)
     if quote:
         quote = str(quote)
-        w, h = carddraw.textsize(quote, font=genfont("arial", int(275/(len(quote)**(1/2)))))
+        w, h = carddraw.textsize(quote, font=genfont("arial", int(275/(len(quote)**(1/2)))), stroke_width=2)
         carddraw.text((644-(w/2),800), quote, font=genfont("arial", int(275/(len(quote)**(1/2)))))
     carddraw.text((250,1150), "SOLO  " + str(stats[1]), font=genfont("EA", 65))
     carddraw.text((250,1250), "TEAM  " + str(stats[2]), font=genfont("EA", 65))
@@ -93,7 +93,7 @@ def newcard(name, stats, pos, pfp, output, nat=None, quote=None):
     status = True
     if nat:
         try:
-            flag = Image.open("flags/" + nat + ".png")
+            flag = Image.open("flags/" + nat + ".png").convert("RGBA")
             flag = flag.resize((120,72))
             card_background.paste(flag, (300,650))
         except:
